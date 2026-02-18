@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BankShield Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #111;
+            color: white;
+            text-align: center;
+            margin: 0;
+        }
+
+        h1 {
+            color: #00ffcc;
+            margin-top: 20px;
+        }
+
+        .card {
+            background: #222;
+            padding: 20px;
+            margin: 15px;
+            border-radius: 10px;
+            display: inline-block;
+            min-width: 200px;
+            height: 120px;              /* 🔥 fixed height */
+            vertical-align: top;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 20px;
+            border: none;
+            background: #00ffcc;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        #violations {
+            max-height: 60px;          /* 🔥 prevent expansion */
+            overflow-y: auto;
+        }
+
+        .chart-container {
+            width: 55%;
+            margin: 40px auto;
+            height: 380px;             /* 🔥 fixed chart height */
+        }
+    </style>
+</head>
+<body>
+
+<h1>🏦 BankShield – Distributed API Protection</h1>
+
+<div class="card">
+    <h2>Total Requests</h2>
+    <h3 id="total">0</h3>
+</div>
+
+<div class="card">
+    <h2>Allowed Requests</h2>
+    <h3 id="allowed">0</h3>
+</div>
+
+<div class="card">
+    <h2>Blocked Requests</h2>
+    <h3 id="blocked">0</h3>
+</div>
+
+<div class="card">
+    <h2>Violations</h2>
+    <div id="violations"></div>
+</div>
+
+<br>
+
+<button onclick="simulate()">🚀 Simulate 20 Transfer Requests</button>
+
+<div class="chart-container">
+    <canvas id="trafficChart"></canvas>
+</div>
+
+<script>
+const MAX_POINTS = 15;
+
+let labels = [];
+let totalData = [];
+let blockedData = [];
+
+let lastTotal = 0;
+let lastBlocked = 0;
+
+const ctx = document.getElementById('trafficChart').getContext('2d');
+
+const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [
+            {
+                label: 'Requests (per interval)',
+                data: totalData,
+                borderColor: '#00ffcc',
+                backgroundColor: 'rgba(0,255,204,0.1)',
+                borderWidth: 4,
+                tension: 0.3
+            },
+            {
+                label: 'Blocked (per interval)',
+                data: blockedData,
+                borderColor: '#ff4d4d',
+                backgroundColor: 'rgba(255,77,77,0.1)',
+                borderWidth: 4,
+                tension: 0.3
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        devicePixelRatio: window.devicePixelRatio,
+        interaction: {
+            mode: 'index',
+            intersect: false
+        },
+        plugins: {
+            legend: {
+                labels: {
+                    color: 'white',
+                    usePointStyle: true,
+                    font:{
+                        size: 14,
+                        weight: 'bold'
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                ticks: { color: 'white',
+                    font: { size: 12 }
+                 },
+                grid: { color: '#333' }
+            },
+            y: {
+                min: 0,
+                max: 20,       /* 🔥 fixed Y axis — no jumping */
+                ticks: { color: 'white',
+                    font: { size: 12 }
+                 },
+                grid: { color: '#333' }
+            }
+        },
+        animations: false   /* 🔥 completely stable */
+    }
+});
+
+async function fetchMetrics() {
+    const res = await fetch('/metrics');
+    const data = await res.json();
+
+    document.getElementById('total').innerText = data.totalRequests;
+    document.getElementById('blocked').innerText = data.blockedRequests;
+    document.getElementById('allowed').innerText = data.allowedRequests;
+
+    const vDiv = document.getElementById('violations');
+    vDiv.innerHTML = "";
+    for (let user in data.violations) {
+        vDiv.innerHTML += `<p>${user} → ${data.violations[user]}</p>`;
+    }
+
+    const deltaTotal = data.totalRequests - lastTotal;
+    const deltaBlocked = data.blockedRequests - lastBlocked;
+
+    lastTotal = data.totalRequests;
+    lastBlocked = data.blockedRequests;
+
+    const time = new Date().toLocaleTimeString();
+
+    labels.push(time);
+    totalData.push(deltaTotal);
+    blockedData.push(deltaBlocked);
+
+    if (labels.length > MAX_POINTS) {
+        labels.shift();
+        totalData.shift();
+        blockedData.shift();
+    }
+
+    chart.update();
+}
+
+async function simulate() {
+    for (let i = 0; i < 20; i++) {
+        fetch('/transfer', { method: 'POST' });
+    }
+}
+
+setInterval(fetchMetrics, 2000);
+fetchMetrics();
+</script>
+
+</body>
+</html>
